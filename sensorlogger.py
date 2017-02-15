@@ -10,89 +10,107 @@ from stat import *
 from threading import Timer
 from time import sleep
 
+NETWORK_IFACE = 'eth0'
 GPS_PATH = '/dev/ttyACM0'
-gps_available = False
+GPS_CONNECTED = True
+GPS_DISCONNECTED = False
+
+
+OLED_LINE_SENSOR_TYPE = 0
+OLED_LINE_GPS_LAT = 1
+OLED_LINE_GPS_LON = 2
+OLED_LINE_GPS_SENSOR_DATA = 3
+OLED_LINE_GPS_SENSOR_DATA_AVG = 4
+OLED_LINE_SPACER = 5
+OLED_LINE_IP = 6
+OLED_LINE_TIME = 7
+
+external_ip = ""
+
+gps_current_state = False
 gps_port = None
 nmea_stream = None
 
-def check_ip():
-    external_ip = os.popen("ifconfig eth0|grep inet|awk '{print $2}' | sed -e s/.*://", "r").read().strip()
-    oled.setTextXY(0, 0)
-    for i in range(16):
-        oled.putChar(' ')
-    oled.setTextXY(0, 0)
-    oled.putString(" %s" % (external_ip if external_ip != '' else "no IP"))
-    t = Timer(10, check_ip)
-    t.start()
 
-def check_for_gps():
-    global gps_available
-    global gps_port
-    global GPS_PATH
-    global nmea_stream
+def check_ip(iface):
+    cmd = "ifconfig %s | grep inet |awk '{print $2}' | sed -e s/.*://" % (iface)
+    return os.popen(cmd, "r").read().strip()
 
+def check_for_gps(path):
+    if os.path.exists(path) and S_ISCHR(os.stat(path).st_mode):
+        return True
+    return False
 
-    if not os.path.exists(GPS_PATH):
-        gps_available = False
-        if gps_port:
-            try:
-                gps_port.close()
-            except:
-                pass
-            gps_port = None
-        oled.setTextXY(0, 1)
-        oled.putString("Turn GPS on    ")
-    else:
-        mode = os.stat(GPS_PATH)
-        if S_ISCHR(mode.st_mode):
-            if not gps_available:
-                gps_available = True
-                gps_port = serial.Serial(GPS_PATH, 9600)
-                gps_port.flushInput()
-                nmea_stream = nmea.NMEAStreamReader(gps_port, errors='raise')
-                oled.putString("Wait for fix...")
-    t = Timer(5, check_for_gps)
-    t.start()
+def oled_write_line(line, msg, clear=True):
+    oled.setTextXY(0, line)
+    if clear:
+        for i in range(16):
+            oled.putChar(' ')
+    oled.setTextXY(0, line)
+    oled.putString(msg[0:16])
 
 oled.init()          #initialze SEEED OLED display
 oled.clearDisplay()          #clear the screen and set start position to top left corner
 oled.setNormalDisplay()      #Set display to normal mode (i.e non-inverse mode)
 oled.setPageMode()           #Set addressing mode to Page Mode
 
-check_ip()
-check_for_gps()
+oled_write_line(OLED_LINE_SENSOR_TYPE, "Sensor: Sound")
+oled_write_line(OLED_LINE_GPS_LAT, "GPS Disconnected")
+oled_write_line(OLED_LINE_SPACER, "----------------")
+
 
 try:
     while True:
-        if gps_available and gps_port != None:
+
+        ip = check_ip(NETWORK_IFACE)
+        if ip != external_ip:
+            oled_write_line(OLED_LINE_IP, ip)
+            external_ip = ip
+
+        gps_new_state = check_for_gps(GPS_PATH)
+        if gps_new_state != gps_current_state:
+            if gps_new_state == GPS_CONNECTED:
+                gps_port = serial.Serial(GPS_PATH, 9600)
+                gps_port.flushInput()
+                nmea_stream = nmea.NMEAStreamReader(gps_port, errors='raise')
+            else:
+                if gps_port != None:
+                    nmea_stream = None
+                    gps_port.flushInput()
+                    gps_port.close()
+
+            oled_write_line(OLED_LINE_GPS_LAT, "GPS %s" % ("Connected" if gps_new_state == GPS_CONNECTED else "Disconnected"))
+            oled_write_line(OLED_LINE_GPS_LON, "")
+            gps_current_state = gps_new_state
+
+        if gps_current_state == GPS_CONNECTED and gps_port != None:
             try:
                 for msg in nmea_stream.next():
-                    #print str(msg)
                     if msg.sentence_type == 'GGA':
-                        t = msg.timestamp.strftime("%H:%M:%S")
-                        print t, msg.is_valid
+                        tstamp = msg.timestamp.strftime("%H:%M:%S UTC")
+                        oled_write_line(OLED_LINE_TIME, tstamp, False)
+                        print tstamp, msg.is_valid
+
                         if not msg.is_valid:
-                            oled.setTextXY(0, 1)
-                            oled.putString("Wait for fix...")
+                            oled_write_line(OLED_LINE_GPS_LON, "Waiting for fix")
                         else:
                             lat = "%s %s%s" % (msg.lat[0:2], msg.lat[2:], msg.lat_dir)
                             lon = "%s %s%s" % (msg.lon[0:3], msg.lon[3:], msg.lon_dir)
-                            alt = "%d" % (msg.altitude)
-                            oled.setTextXY(0, 1)
-                            oled.putString("lat %s" % (lat))
-                            oled.setTextXY(0, 2)
-                            oled.putString("lon %s" % (lon))
-                            print lat, lon, alt
-                        oled.setTextXY(0, 7)
-                        oled.putString(t)
+                            oled_write_line(OLED_LINE_GPS_LAT, "lat %s" % (lat))
+                            oled_write_line(OLED_LINE_GPS_LON, "lat %s" % (lat))
+                            print lat, lon
+
             except nmea.ParseError as e:
                 print e
             except UnicodeDecodeError as e:
                 print e
         else:
             sleep(1)
+
 except KeyboardInterrupt:
     print "Quiting"
     if gps_port != None:
+        nmea_stream = None
+        gps_port.flushInput()
         gps_port.close()
     sys.exit()
