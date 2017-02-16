@@ -36,7 +36,7 @@ elif SENSOR == 'moist':
     sensor = Sensor(0)
 elif SENSOR == 'simplelight':
     from sensors.simple_light import Sensor
-    sensor = Sensor(0)
+    sensor = Sensor(0, 0.8)
 
 
 
