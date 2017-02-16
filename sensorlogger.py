@@ -11,7 +11,7 @@ from time import sleep
 
 SENSOR = 'sound'
 if sys.argv[1] != '':
-    SENSOR = sys.argv[1]
+    SENSOR = sys.argv[1].strip().lower()
 
 if SENSOR == 'sound':
     from sensors.sound import Sensor
@@ -22,6 +22,20 @@ elif SENSOR == 'dht':
 elif SENSOR == 'uv':
     from sensors.uv import Sensor
     sensor = Sensor(0)
+elif SENSOR == 'dust':
+    from sensors.dust import Sensor
+    sensor = Sensor()
+elif SENSOR == 'gas':
+    from sensors.gas import Sensor
+    sensor = Sensor(0)
+elif SENSOR == 'air':
+    from sensors.air import Sensor
+    sensor = Sensor(0)
+elif SENSOR == 'moist':
+    from sensors.moist import Sensor
+    sensor = Sensor(0)
+
+
 
 
 NETWORK_IFACE = 'eth0'
