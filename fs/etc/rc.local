@@ -29,6 +29,6 @@ echo " "
 sudo bash /home/pi/di_update/Raspbian_For_Robots/upd_script/rc.sh
 sudo python /home/pi/Dexter/lib/Dexter/auto_detect_robot.py
 
-cat /boot/sensor.txt | grep -v "#" | xargs sudo python sensorlogger.py &
+cat /boot/sensor.txt | grep -v "#" | xargs sudo python /home/pi/grovepi_sensorlogger/sensorlogger.py &
 
 exit 0
