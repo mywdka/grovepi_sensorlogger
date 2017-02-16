@@ -9,7 +9,20 @@ import sys
 from stat import *
 from time import sleep
 
-from sensors.sound import Sound
+SENSOR = 'sound'
+if sys.argv[1] != '':
+    SENSOR = sys.argv[1]
+
+if SENSOR == 'sound':
+    from sensors.sound import Sensor
+    sensor = Sensor(0, 0.5)
+elif SENSOR == 'dht':
+    from sensors.dht import Sensor
+    sensor = Sensor(4)
+elif SENSOR == 'uv':
+    from sensors.uv import Sensor
+    sensor = Sensor(0)
+
 
 NETWORK_IFACE = 'eth0'
 GPS_PATH = '/dev/ttyACM0'
@@ -20,19 +33,25 @@ GPS_DISCONNECTED = False
 OLED_LINE_SENSOR_TYPE = 0
 OLED_LINE_GPS_LAT = 1
 OLED_LINE_GPS_LON = 2
-OLED_LINE_SENSOR_DATA = 3
-OLED_LINE_SENSOR_DATA_AVG = 4
+OLED_LINE_SENSOR_DATA1 = 3
+OLED_LINE_SENSOR_DATA2 = 4
 OLED_LINE_SPACER = 5
 OLED_LINE_IP = 6
 OLED_LINE_TIME = 7
 
-external_ip = ""
+LOG_PATH = '/boot/log.csv'
+CSV_DELIMITER = '|'
+LOG_HEADER = 'timestamp (UTC){delim}latitude{delim}longitude{delim}signal quality{delim}sensor type{delim}{sensor_hdr}\n'
+LOG_FORMAT = '{time}{delim}{lat}{delim}{lon}{delim}{valid}{delim}{sensor}{delim}{value_str}\n'
+
+
+external_ip = ''
 
 gps_current_state = False
 gps_port = None
 nmea_stream = None
 
-last_latlon = [None, None, None]
+last_latlon = {'tstamp': '', 'lat':'51.9187771N', 'lon':'4.4863584E'}
 
 
 def check_ip(iface):
@@ -44,13 +63,17 @@ def check_for_gps(path):
         return True
     return False
 
-def oled_write_line(line, msg, clear=True):
+def oled_write_line(line, msg):
     oled.setTextXY(0, line)
-    if clear:
-        for i in range(16):
-            oled.putChar(' ')
-    oled.setTextXY(0, line)
-    oled.putString(msg[0:16])
+    oled.putString('{0: <{1}}'.format(msg[0:16], 16))
+
+def write_to_log(path, msg):
+    with open(path, "a") as log:
+        log.write(msg)
+
+def format_log_msg(delim='|', gps_time="", gps_lat="", gps_lon="", gps_quality=0, sensor_name="", value_str=""):
+    return LOG_FORMAT.format(delim=delim, time=gps_time, lat=gps_lat, lon=gps_lon, valid=gps_quality, 
+                             sensor=sensor_name, value_str=value_str)
 
 oled.init()          #initialze SEEED OLED display
 oled.clearDisplay()          #clear the screen and set start position to top left corner
@@ -58,12 +81,15 @@ oled.clearDisplay()          #clear the screen and set start position to top lef
 oled.setInverseDisplay()      #Set display to normal mode (i.e non-inverse mode)
 oled.setPageMode()           #Set addressing mode to Page Mode
 
-oled_write_line(OLED_LINE_SENSOR_TYPE, "Sensor: Sound")
+sensor.start()
+
+write_to_log(LOG_PATH, LOG_HEADER.format(delim=CSV_DELIMITER, sensor_hdr=sensor.get_log_header(CSV_DELIMITER)))
+
+oled_write_line(OLED_LINE_SENSOR_TYPE, "Sensor: %s" % (sensor.shortname))
 oled_write_line(OLED_LINE_GPS_LAT, "GPS Disconnected")
 oled_write_line(OLED_LINE_SPACER, "----------------")
 
-sensor = Sound(0, 0.5)
-sensor.start()
+
 
 try:
     while True:
@@ -93,18 +119,30 @@ try:
             try:
                 for msg in nmea_stream.next():
                     if msg.sentence_type == 'GGA':
-                        tstamp = msg.timestamp.strftime("%H:%M:%S UTC")
-                        oled_write_line(OLED_LINE_TIME, tstamp, False)
+                        tstamp = msg.timestamp.strftime("%H:%M:%S")
+                        oled_write_line(OLED_LINE_TIME, tstamp)
+                        last_latlon['tstamp'] = tstamp
 
                         if not msg.is_valid:
+                            oled_write_line(OLED_LINE_GPS_LAT, "GPS Connected   ")
                             oled_write_line(OLED_LINE_GPS_LON, "Waiting for fix")
                         else:
                             lat = "%s %s%s" % (msg.lat[0:2], msg.lat[2:], msg.lat_dir)
                             lon = "%s %s%s" % (msg.lon[0:3], msg.lon[3:], msg.lon_dir)
                             oled_write_line(OLED_LINE_GPS_LAT, "lat %s" % (lat))
-                            oled_write_line(OLED_LINE_GPS_LON, "lat %s" % (lat))
-                            last_latlon = [msg.timestamp, lat, lon]
-                            print last_latlon
+                            oled_write_line(OLED_LINE_GPS_LON, "lon %s" % (lon))
+                            last_latlon['lat'] = lat 
+                            last_latlon['lon'] = lon
+                        
+                        logmsg = format_log_msg(delim       = CSV_DELIMITER,
+                                                gps_time    = last_latlon['tstamp'], 
+                                                gps_lat     = last_latlon['lat'], 
+                                                gps_lon     = last_latlon['lon'], 
+                                                gps_quality = msg.gps_qual, 
+                                                sensor_name = sensor.name, 
+                                                value_str   = sensor.get_log_string(CSV_DELIMITER))
+                        print logmsg
+                        write_to_log(LOG_PATH, logmsg)
 
             except nmea.ParseError as e:
                 print e
@@ -113,10 +151,10 @@ try:
             except Exception as e:
                 print e
         else:
-            time.sleep(1)
+            sleep(0.01)
 
-        oled_write_line(OLED_LINE_SENSOR_DATA,     "value: %.4d" % (sensor.value), False)
-        oled_write_line(OLED_LINE_SENSOR_DATA_AVG, "Avg:   %.4d" % (sensor.avg_value), False)
+        oled_write_line(OLED_LINE_SENSOR_DATA1, sensor.get_str1())
+        oled_write_line(OLED_LINE_SENSOR_DATA2, sensor.get_str2())
 
 except KeyboardInterrupt:
     print "Quiting"
