@@ -34,6 +34,10 @@ elif SENSOR == 'air':
 elif SENSOR == 'moist':
     from sensors.moist import Sensor
     sensor = Sensor(0)
+elif SENSOR == 'simplelight':
+    from sensors.simple_light import Sensor
+    sensor = Sensor(0)
+
 
 
 
