@@ -57,7 +57,7 @@ OLED_LINE_TIME = 7
 LOG_PATH = '/boot/log.csv'
 CSV_DELIMITER = '|'
 LOG_HEADER = 'timestamp (UTC){delim}latitude{delim}longitude{delim}signal quality{delim}sensor type{delim}{sensor_hdr}\n'
-LOG_FORMAT = '{time}{delim}{lat}{delim}{lon}{delim}{valid}{delim}{sensor}{delim}{value_str}\n'
+LOG_FORMAT = '{time}{delim}{lat}{delim}{lon}{delim}{valid}{delim}"{sensor}"{delim}{value_str}\n'
 
 
 external_ip = ''
