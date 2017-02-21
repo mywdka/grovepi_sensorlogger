@@ -34,9 +34,9 @@ elif SENSOR == 'air':
 elif SENSOR == 'moist':
     from sensors.moist import Sensor
     sensor = Sensor(0)
-elif SENSOR == 'simplelight':
+elif SENSOR == 'simple_light':
     from sensors.simple_light import Sensor
-    sensor = Sensor(0, 0.8)
+    sensor = Sensor(0)
 
 
 
@@ -88,6 +88,8 @@ def oled_write_line(line, msg):
 def write_to_log(path, msg):
     with open(path, "a") as log:
         log.write(msg)
+	log.flush()
+	os.fsync(log.fileno())
 
 def format_log_msg(delim='|', gps_time="", gps_lat="", gps_lon="", gps_quality=0, sensor_name="", value_str=""):
     return LOG_FORMAT.format(delim=delim, time=gps_time, lat=gps_lat, lon=gps_lon, valid=gps_quality, 
@@ -145,19 +147,19 @@ try:
                             oled_write_line(OLED_LINE_GPS_LAT, "GPS Connected   ")
                             oled_write_line(OLED_LINE_GPS_LON, "Waiting for fix")
                         else:
-                            lat = "%s %s%s" % (msg.lat[0:2], msg.lat[2:], msg.lat_dir)
-                            lon = "%s %s%s" % (msg.lon[0:3], msg.lon[3:], msg.lon_dir)
-                            oled_write_line(OLED_LINE_GPS_LAT, "lat %s" % (lat))
-                            oled_write_line(OLED_LINE_GPS_LON, "lon %s" % (lon))
-                            last_latlon['lat'] = lat 
+                            lat = "%f" % (msg.latitude)
+                            lon = "%f" % (msg.longitude)
+                            oled_write_line(OLED_LINE_GPS_LAT, "lat %.7f" % (lat))
+                            oled_write_line(OLED_LINE_GPS_LON, "lon %.7f" % (lon))
+                            last_latlon['lat'] = lat
                             last_latlon['lon'] = lon
-                        
+
                         logmsg = format_log_msg(delim       = CSV_DELIMITER,
-                                                gps_time    = last_latlon['tstamp'], 
-                                                gps_lat     = last_latlon['lat'], 
-                                                gps_lon     = last_latlon['lon'], 
-                                                gps_quality = msg.gps_qual, 
-                                                sensor_name = sensor.name, 
+                                                gps_time    = last_latlon['tstamp'],
+                                                gps_lat     = last_latlon['lat'],
+                                                gps_lon     = last_latlon['lon'],
+                                                gps_quality = msg.gps_qual,
+                                                sensor_name = sensor.name,
                                                 value_str   = sensor.get_log_string(CSV_DELIMITER))
                         print logmsg
                         write_to_log(LOG_PATH, logmsg)
