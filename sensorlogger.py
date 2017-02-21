@@ -66,7 +66,7 @@ gps_current_state = False
 gps_port = None
 nmea_stream = None
 
-last_latlon = {'tstamp': '', 'lat':'51.9187771N', 'lon':'4.4863584E'}
+last_latlon = {'tstamp': '', 'lat':'51.918777', 'lon':'4.486358'}
 
 
 def check_ip(iface):
