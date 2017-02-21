@@ -39,9 +39,6 @@ elif SENSOR == 'simple_light':
     sensor = Sensor(0)
 
 
-
-
-
 NETWORK_IFACE = 'eth0'
 GPS_PATH = '/dev/ttyACM0'
 GPS_CONNECTED = True
@@ -149,8 +146,8 @@ try:
                         else:
                             lat = "%f" % (msg.latitude)
                             lon = "%f" % (msg.longitude)
-                            oled_write_line(OLED_LINE_GPS_LAT, "lat %.7f" % (lat))
-                            oled_write_line(OLED_LINE_GPS_LON, "lon %.7f" % (lon))
+                            oled_write_line(OLED_LINE_GPS_LAT, "lat %s" % (lat))
+                            oled_write_line(OLED_LINE_GPS_LON, "lon %s" % (lon))
                             last_latlon['lat'] = lat
                             last_latlon['lon'] = lon
 
